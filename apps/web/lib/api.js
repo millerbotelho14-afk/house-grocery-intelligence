@@ -67,6 +67,13 @@ export const api = {
   purchases(token) {
     return request("/purchases", { token });
   },
+  createPurchase(token, parsedReceipt) {
+    return request("/purchases", {
+      method: "POST",
+      token,
+      body: { parsedReceipt }
+    });
+  },
   dataItems(token) {
     return request("/data-items", { token });
   },

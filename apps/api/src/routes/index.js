@@ -6,11 +6,11 @@ import {
   getEditableItems,
   getProduct,
   listProducts,
-  priceLookup,
   purchases,
+  priceLookup,
   updateEditableItem
 } from "../controllers/analytics.controller.js";
-import { uploadReceipt } from "../controllers/receipt.controller.js";
+import { createPurchase, previewReceipt } from "../controllers/receipt.controller.js";
 import { requireAuth } from "../middleware/auth.middleware.js";
 import { receiptUpload } from "../middleware/upload.middleware.js";
 
@@ -22,7 +22,8 @@ router.post("/auth/guest", guest);
 router.get("/auth/me", me);
 router.post("/auth/logout", requireAuth, logout);
 
-router.post("/upload-receipt", requireAuth, receiptUpload.single("file"), uploadReceipt);
+router.post("/upload-receipt", requireAuth, receiptUpload.single("file"), previewReceipt);
+router.post("/purchases", requireAuth, createPurchase);
 router.get("/products", requireAuth, listProducts);
 router.get("/products/:id", requireAuth, getProduct);
 router.get("/price-lookup", requireAuth, priceLookup);

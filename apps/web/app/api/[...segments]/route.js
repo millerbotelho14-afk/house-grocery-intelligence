@@ -20,6 +20,7 @@ import {
   saveParsedReceipt
 } from "../../../../api/src/services/repository.service.js";
 import { extractReceiptText } from "../../../../api/src/services/ocr.service.js";
+import { buildReceiptWarnings, normalizeReceiptDraft } from "../../../../api/src/services/receipt-draft.service.js";
 import { parseReceipt } from "../../../../api/src/services/receipt-parser.service.js";
 import { comparePassword, generateSessionToken, hashPassword } from "../../../../api/src/utils/auth.js";
 
@@ -118,6 +119,25 @@ async function handleRequest(request, context) {
       return NextResponse.json(await getPurchases(user.id));
     }
 
+    if (resource === "purchases" && request.method === "POST") {
+      const payload = await request.json();
+      const parsedReceipt = normalizeReceiptDraft(payload?.parsedReceipt || payload || {});
+
+      if (!parsedReceipt.items.length) {
+        return NextResponse.json({ message: "Adicione pelo menos um item antes de salvar." }, { status: 400 });
+      }
+
+      const saved = await saveParsedReceipt(parsedReceipt, user.id);
+      return NextResponse.json(
+        {
+          message: "Compra salva com sucesso",
+          parsedReceipt,
+          saved
+        },
+        { status: 201 }
+      );
+    }
+
     if (resource === "products" && !identifier && request.method === "GET") {
       const query = new URL(request.url).searchParams.get("q") || "";
       return NextResponse.json(await getProducts(user.id, query));
@@ -190,17 +210,14 @@ async function handleRequest(request, context) {
       }
 
       const text = await extractReceiptText({ type, source, file });
-      const parsedReceipt = await parseReceipt(text);
-      const saved = await saveParsedReceipt(parsedReceipt, user.id);
+      const parsedReceipt = normalizeReceiptDraft(await parseReceipt(text));
+      const warnings = buildReceiptWarnings(parsedReceipt);
 
-      return NextResponse.json(
-        {
-          message: "Cupom processado com sucesso",
-          parsedReceipt,
-          saved
-        },
-        { status: 201 }
-      );
+      return NextResponse.json({
+        message: "Cupom lido. Revise antes de salvar.",
+        parsedReceipt,
+        warnings
+      });
     }
 
     return NextResponse.json({ message: "Rota nao encontrada" }, { status: 404 });

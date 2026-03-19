@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { getPool, isDatabaseConfigured } from "../config/database.js";
 import { mockDatabase } from "../data/mockDatabase.js";
+import { normalizeReceiptDraft } from "./receipt-draft.service.js";
 import { hashPassword } from "../utils/auth.js";
 
 const GUEST_DOMAIN = "guest.housegrocery.local";
@@ -319,8 +320,10 @@ export async function getProductSnapshot(productId, userId) {
 }
 
 export async function saveParsedReceipt(parsedReceipt, userId) {
+  const safeReceipt = normalizeReceiptDraft(parsedReceipt);
+
   if (!(await canUseDatabase())) {
-    return mockDatabase.addParsedPurchase(parsedReceipt);
+    return mockDatabase.addParsedPurchase(safeReceipt);
   }
 
   const pool = getPool();
@@ -336,7 +339,7 @@ export async function saveParsedReceipt(parsedReceipt, userId) {
         ON CONFLICT (name) DO UPDATE SET location = EXCLUDED.location
         RETURNING id, name, location
       `,
-      [parsedReceipt.storeName, parsedReceipt.storeLocation]
+      [safeReceipt.storeName, safeReceipt.storeLocation]
     );
 
     const foundStore = storeResult.rows[0];
@@ -350,13 +353,13 @@ export async function saveParsedReceipt(parsedReceipt, userId) {
       [
         userId,
         foundStore.id,
-        parsedReceipt.purchaseDate,
-        parsedReceipt.totalValue,
-        parsedReceipt.items.length
+        safeReceipt.purchaseDate,
+        safeReceipt.totalValue,
+        safeReceipt.items.length
       ]
     );
 
-    for (const item of parsedReceipt.items) {
+    for (const item of safeReceipt.items) {
       let product =
         (
           await client.query(
@@ -419,7 +422,7 @@ export async function saveParsedReceipt(parsedReceipt, userId) {
           purchaseResult.rows[0].id,
           userId,
           item.unitPrice,
-          parsedReceipt.purchaseDate
+          safeReceipt.purchaseDate
         ]
       );
     }
@@ -428,7 +431,7 @@ export async function saveParsedReceipt(parsedReceipt, userId) {
     return {
       purchaseId: purchaseResult.rows[0].id,
       store: foundStore,
-      itemsCount: parsedReceipt.items.length
+      itemsCount: safeReceipt.items.length
     };
   } catch (error) {
     await client.query("ROLLBACK");

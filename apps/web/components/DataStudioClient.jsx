@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "./AuthProvider";
@@ -47,6 +48,11 @@ export function DataStudioClient() {
             <p className="mt-2 text-[var(--muted)]">
               Aqui voce revisa os itens lidos do cupom, corrige divergencias e adiciona comentarios. O app reflete essas alteracoes.
             </p>
+            <div className="mt-4">
+              <Link href="/upload" className="rounded-full border border-[var(--line)] px-4 py-2 text-sm">
+                Adicionar compra manual ou por cupom
+              </Link>
+            </div>
             {error ? <p className="mt-4 text-sm text-red-700">{error}</p> : null}
           </div>
           {items.map((item, index) => (
