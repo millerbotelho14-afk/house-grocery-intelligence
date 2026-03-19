@@ -1,0 +1,6 @@
+node_modules
+apps/web/.next/cache
+apps/web/node_modules
+apps/api/node_modules
+npm-debug.log
+localtunnel.log

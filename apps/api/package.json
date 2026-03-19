@@ -1,0 +1,23 @@
+{
+  "name": "@house-grocery/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "build": "node --check src/server.js",
+    "db:setup": "node src/scripts/setupDatabase.js",
+    "lint": "node -e \"console.log('lint placeholder for api')\""
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.19.2",
+    "multer": "^1.4.5-lts.2",
+    "pdf-parse": "^1.1.1",
+    "pg": "^8.13.1",
+    "tesseract.js": "^5.1.1"
+  }
+}

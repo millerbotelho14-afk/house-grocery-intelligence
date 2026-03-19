@@ -1,0 +1,18 @@
+{
+  "name": "house-grocery-intelligence",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm --workspace @house-grocery/web run dev",
+    "dev:api": "npm --workspace @house-grocery/api run dev",
+    "share:web": "npx.cmd localtunnel --port 3000",
+    "build": "npm run build --workspaces",
+    "lint": "npm run lint --workspaces"
+  },
+  "devDependencies": {
+    "pdfkit": "^0.18.0"
+  }
+}
