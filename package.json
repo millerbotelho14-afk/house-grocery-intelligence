@@ -6,8 +6,9 @@
     "packages/*"
   ],
   "scripts": {
-    "dev:web": "npm --workspace @house-grocery/web run dev",
-    "dev:api": "npm --workspace @house-grocery/api run dev",
+    "dev:web": "node server.mjs",
+    "dev:api": "node apps/api/src/server.js",
+    "dev:app": "node server.mjs",
     "share:web": "npx.cmd localtunnel --port 3000",
     "build": "npm run build --workspaces",
     "lint": "npm run lint --workspaces"

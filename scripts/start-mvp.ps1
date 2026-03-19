@@ -6,17 +6,10 @@ $ip = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object {
 Start-Process powershell -ArgumentList @(
   "-NoExit",
   "-Command",
-  "Set-Location '$root'; npm.cmd run dev:api"
+  "Set-Location '$root'; npm.cmd run dev:app"
 )
 
-Start-Process powershell -ArgumentList @(
-  "-NoExit",
-  "-Command",
-  "Set-Location '$root'; npm.cmd run dev:web"
-)
-
-Write-Host "API iniciada em http://localhost:4000"
-Write-Host "Frontend iniciado em http://localhost:3000"
+Write-Host "App unificado iniciado em http://localhost:3000"
 if ($ip) {
   Write-Host "Na mesma rede Wi-Fi, voce pode abrir tambem em http://$ip`:3000"
 }

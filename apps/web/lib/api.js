@@ -1,4 +1,4 @@
-const API_BASE = "/api/proxy";
+const API_BASE = "/api";
 
 async function request(path, options = {}) {
   const headers = new Headers(options.headers || {});

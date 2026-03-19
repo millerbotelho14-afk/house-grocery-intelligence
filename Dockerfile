@@ -17,5 +17,4 @@ WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=builder /app ./
 EXPOSE 3000
-EXPOSE 4000
-CMD ["node", "start-production.mjs"]
+CMD ["node", "server.mjs"]
