@@ -10,10 +10,12 @@ import {
   updateEditableItem
 } from "../../../../api/src/services/analytics.service.js";
 import {
+  createGuestSession,
   createSession,
   createUser,
   deleteSession,
   findUserByEmail,
+  getGuestCodeFromUser,
   getUserFromToken,
   saveParsedReceipt
 } from "../../../../api/src/services/repository.service.js";
@@ -66,6 +68,19 @@ async function handleRequest(request, context) {
       const token = generateSessionToken();
       await createSession(user.id, token);
       return NextResponse.json({ token, user });
+    }
+
+    if (resource === "auth" && identifier === "guest" && request.method === "POST") {
+      const payload = await request.json().catch(() => ({}));
+      const session = await createGuestSession(payload.guestCode || "");
+      return NextResponse.json(
+        {
+          token: session.token,
+          guestCode: session.guestCode,
+          user: sanitizeUser(session.user)
+        },
+        { status: 201 }
+      );
     }
 
     if (resource === "auth" && identifier === "login" && request.method === "POST") {
@@ -226,6 +241,7 @@ function sanitizeUser(user) {
   return {
     id: user.id,
     email: user.email,
-    fullName: user.fullName || user.full_name || ""
+    fullName: user.fullName || user.full_name || "",
+    guestCode: getGuestCodeFromUser(user)
   };
 }

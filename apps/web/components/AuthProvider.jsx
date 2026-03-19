@@ -9,30 +9,11 @@ const STORAGE_KEY = "house-grocery-session";
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(null);
   const [user, setUser] = useState(null);
+  const [guestCode, setGuestCode] = useState("");
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const saved = window.localStorage.getItem(STORAGE_KEY);
-    if (!saved) {
-      setReady(true);
-      return;
-    }
-
-    const session = JSON.parse(saved);
-    setToken(session.token);
-    api
-      .me(session.token)
-      .then((response) => {
-        setUser(response.user);
-      })
-      .catch(() => {
-        window.localStorage.removeItem(STORAGE_KEY);
-        setToken(null);
-        setUser(null);
-      })
-      .finally(() => {
-        setReady(true);
-      });
+    bootstrapGuestSession();
   }, []);
 
   async function login(credentials) {
@@ -59,23 +40,66 @@ export function AuthProvider({ children }) {
     window.localStorage.removeItem(STORAGE_KEY);
     setToken(null);
     setUser(null);
+    setGuestCode("");
+    await bootstrapGuestSession();
   }
 
   function persist(response) {
     const nextSession = {
       token: response.token,
-      user: response.user
+      user: response.user,
+      guestCode: response.guestCode || response.user?.guestCode || ""
     };
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextSession));
     setToken(response.token);
     setUser(response.user);
+    setGuestCode(nextSession.guestCode);
+  }
+
+  async function bootstrapGuestSession() {
+    const saved = getSavedSession();
+
+    try {
+      if (saved?.token) {
+        const response = await api.me(saved.token);
+        persist({
+          token: saved.token,
+          user: response.user,
+          guestCode: response.user?.guestCode || saved.guestCode || ""
+        });
+        setReady(true);
+        return;
+      }
+    } catch (_error) {
+      window.localStorage.removeItem(STORAGE_KEY);
+      setToken(null);
+      setUser(null);
+      setGuestCode("");
+    }
+
+    try {
+      const guestSession = await api.guest(saved?.guestCode || "");
+      persist(guestSession);
+    } finally {
+      setReady(true);
+    }
   }
 
   return (
-    <AuthContext.Provider value={{ token, user, ready, login, register, logout }}>
+    <AuthContext.Provider value={{ token, user, guestCode, ready, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );
+}
+
+function getSavedSession() {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (_error) {
+    window.localStorage.removeItem(STORAGE_KEY);
+    return null;
+  }
 }
 
 export function useAuth() {

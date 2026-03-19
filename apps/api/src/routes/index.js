@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { askAi } from "../controllers/ai.controller.js";
-import { login, logout, me, register } from "../controllers/auth.controller.js";
+import { guest, login, logout, me, register } from "../controllers/auth.controller.js";
 import {
   dashboard,
   getEditableItems,
@@ -18,6 +18,7 @@ const router = Router();
 
 router.post("/auth/register", register);
 router.post("/auth/login", login);
+router.post("/auth/guest", guest);
 router.get("/auth/me", me);
 router.post("/auth/logout", requireAuth, logout);
 

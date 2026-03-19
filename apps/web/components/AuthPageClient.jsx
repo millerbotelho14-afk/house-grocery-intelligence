@@ -55,7 +55,7 @@ export function AuthPageClient() {
           {mode === "login" ? "Acesse seu painel de compras" : "Crie sua conta pessoal"}
         </h1>
         <p className="mt-3 text-[var(--muted)]">
-          Login simples para voce usar no celular e em outros computadores.
+          A autenticacao continua disponivel como backup, mas o app principal agora abre direto em modo convidado.
         </p>
 
         <form onSubmit={handleSubmit} className="mt-8 grid gap-4">

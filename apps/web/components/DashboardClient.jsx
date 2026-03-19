@@ -93,10 +93,10 @@ function DashboardContent({ dashboard }) {
         <div className="glass rounded-[24px] p-5">
           <h2 className="text-2xl font-semibold">Fluxo do app</h2>
           <ol className="mt-5 space-y-3 text-sm text-[var(--muted)]">
-            <li>1. Crie sua conta e faca login</li>
+            <li>1. Abra o app e o sistema cria seu espaco de convidado</li>
             <li>2. Envie cupom por link NFC-e, XML, PDF ou imagem</li>
             <li>3. O sistema extrai itens e normaliza produtos</li>
-            <li>4. O historico fica salvo no seu banco PostgreSQL</li>
+            <li>4. O historico fica salvo no seu banco PostgreSQL com seu codigo de convidado</li>
             <li>5. Use no mercado pelo celular com Price Lookup</li>
           </ol>
           <Link href="/upload" className="mt-6 inline-flex rounded-full bg-[var(--ink)] px-5 py-3 text-sm font-semibold text-white">

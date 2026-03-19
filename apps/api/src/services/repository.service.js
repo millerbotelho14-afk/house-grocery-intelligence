@@ -1,5 +1,10 @@
+import crypto from "crypto";
 import { getPool, isDatabaseConfigured } from "../config/database.js";
 import { mockDatabase } from "../data/mockDatabase.js";
+import { hashPassword } from "../utils/auth.js";
+
+const GUEST_DOMAIN = "guest.housegrocery.local";
+const GUEST_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 export async function findUserByEmail(email) {
   if (!(await canUseDatabase())) {
@@ -39,6 +44,43 @@ export async function createUser({ email, passwordHash, fullName }) {
   );
 
   return rows[0];
+}
+
+export async function createGuestSession(preferredCode = "") {
+  const guestCode = normalizeGuestCode(preferredCode) || generateGuestCode();
+  const guestIdentity = buildGuestIdentity(guestCode);
+
+  if (!(await canUseDatabase())) {
+    return {
+      token: `demo-guest-${guestCode}`,
+      guestCode,
+      user: {
+        id: "demo-user",
+        email: guestIdentity.email,
+        fullName: guestIdentity.fullName
+      }
+    };
+  }
+
+  let user = await findUserByEmail(guestIdentity.email);
+
+  if (!user) {
+    const passwordHash = await hashPassword(`guest:${guestCode}:house-grocery`);
+    user = await createUser({
+      email: guestIdentity.email,
+      passwordHash,
+      fullName: guestIdentity.fullName
+    });
+  }
+
+  const token = crypto.randomBytes(32).toString("hex");
+  await createSession(user.id, token);
+
+  return {
+    token,
+    guestCode,
+    user
+  };
 }
 
 export async function createSession(userId, token) {
@@ -89,6 +131,12 @@ export async function deleteSession(token) {
   }
 
   await getPool().query(`DELETE FROM user_sessions WHERE token = $1`, [token]);
+}
+
+export function getGuestCodeFromUser(user) {
+  const email = String(user?.email || "");
+  const match = email.match(/^guest\+([A-Z0-9]+)@guest\.housegrocery\.local$/i);
+  return match ? match[1].toUpperCase() : "";
 }
 
 export async function listPurchases(userId) {
@@ -466,21 +514,35 @@ export async function updatePurchaseItem(userId, itemId, payload) {
   values.push(itemId, userId);
   const { rows } = await getPool().query(
     `
-      UPDATE purchase_items pi
-      SET ${fields.join(", ")}
-      FROM purchases pu
-      WHERE pi.id = $${index}
-        AND pu.id = pi.purchase_id
-        AND pu.user_id = $${index + 1}
-      RETURNING
-        pi.id,
-        pi.purchase_id AS "purchaseId",
-        pi.original_name AS "originalName",
-        pi.normalized_name_override AS "normalizedProductName",
-        pi.quantity::float AS "quantity",
-        pi.unit_price::float AS "unitPrice",
-        pi.total_price::float AS "totalPrice",
-        pi.user_comment AS "userComment"
+      WITH updated AS (
+        UPDATE purchase_items pi
+        SET ${fields.join(", ")}
+        FROM purchases pu
+        WHERE pi.id = $${index}
+          AND pu.id = pi.purchase_id
+          AND pu.user_id = $${index + 1}
+        RETURNING
+          pi.id,
+          pi.purchase_id AS "purchaseId",
+          pi.product_id AS "productId",
+          pi.original_name AS "originalName",
+          pi.normalized_name_override AS "normalizedNameOverride",
+          pi.quantity::float AS "quantity",
+          pi.unit_price::float AS "unitPrice",
+          pi.total_price::float AS "totalPrice",
+          pi.user_comment AS "userComment"
+      )
+      SELECT
+        updated.id,
+        updated."purchaseId",
+        updated."originalName",
+        COALESCE(updated."normalizedNameOverride", pr.normalized_name) AS "normalizedProductName",
+        updated.quantity,
+        updated."unitPrice",
+        updated."totalPrice",
+        updated."userComment"
+      FROM updated
+      JOIN products pr ON pr.id = updated."productId"
     `,
     values
   );
@@ -499,4 +561,28 @@ async function canUseDatabase() {
   } catch (_error) {
     return false;
   }
+}
+
+function normalizeGuestCode(code) {
+  return String(code || "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 8);
+}
+
+function generateGuestCode() {
+  let code = "";
+
+  for (let index = 0; index < 8; index += 1) {
+    code += GUEST_ALPHABET[Math.floor(Math.random() * GUEST_ALPHABET.length)];
+  }
+
+  return code;
+}
+
+function buildGuestIdentity(guestCode) {
+  return {
+    email: `guest+${guestCode}@${GUEST_DOMAIN}`,
+    fullName: `Convidado ${guestCode}`
+  };
 }

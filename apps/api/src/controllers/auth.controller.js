@@ -1,11 +1,22 @@
 import { comparePassword, generateSessionToken, hashPassword } from "../utils/auth.js";
 import {
+  createGuestSession,
   createSession,
   createUser,
   deleteSession,
   findUserByEmail,
+  getGuestCodeFromUser,
   getUserFromToken
 } from "../services/repository.service.js";
+
+export async function guest(req, res) {
+  const session = await createGuestSession(req.body?.guestCode || "");
+  return res.status(201).json({
+    token: session.token,
+    guestCode: session.guestCode,
+    user: sanitizeUser(session.user)
+  });
+}
 
 export async function register(req, res) {
   const { fullName, email, password } = req.body || {};
@@ -86,6 +97,7 @@ function sanitizeUser(user) {
   return {
     id: user.id,
     email: user.email,
-    fullName: user.fullName || user.full_name || ""
+    fullName: user.fullName || user.full_name || "",
+    guestCode: getGuestCodeFromUser(user)
   };
 }

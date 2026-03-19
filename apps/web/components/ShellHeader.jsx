@@ -15,7 +15,7 @@ const links = [
 
 export function ShellHeader() {
   const pathname = usePathname();
-  const { user, logout } = useAuth();
+  const { guestCode, user } = useAuth();
 
   return (
     <header className="glass mb-8 rounded-[28px] p-4 md:p-6">
@@ -41,20 +41,15 @@ export function ShellHeader() {
               </Link>
             );
           })}
-          {user ? (
-            <button onClick={logout} className="rounded-full px-4 py-2 text-sm stat-pill">
-              Sair
-            </button>
-          ) : (
-            <Link href="/login" className="rounded-full px-4 py-2 text-sm stat-pill">
-              Entrar
-            </Link>
-          )}
         </nav>
       </div>
       {user ? (
-        <div className="mt-4 text-sm text-[var(--muted)]">
-          Logado como <span className="font-semibold text-[var(--ink)]">{user.fullName || user.email}</span>
+        <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-[var(--muted)]">
+          <span>
+            Modo convidado ativo em{" "}
+            <span className="font-semibold text-[var(--ink)]">{user.fullName || user.email}</span>
+          </span>
+          {guestCode ? <span className="stat-pill rounded-full px-3 py-1 text-[var(--ink)]">Codigo {guestCode}</span> : null}
         </div>
       ) : null}
     </header>

@@ -30,6 +30,9 @@ async function request(path, options = {}) {
 }
 
 export const api = {
+  guest(guestCode = "") {
+    return request("/auth/guest", { method: "POST", body: { guestCode } });
+  },
   register(payload) {
     return request("/auth/register", { method: "POST", body: payload });
   },
