@@ -5,6 +5,10 @@ import { hashPassword } from "../utils/auth.js";
 
 const GUEST_DOMAIN = "guest.housegrocery.local";
 const GUEST_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+let databaseAvailability = {
+  checkedAt: 0,
+  value: null
+};
 
 export async function findUserByEmail(email) {
   if (!(await canUseDatabase())) {
@@ -193,13 +197,13 @@ export async function listProducts(userId) {
     `
       SELECT DISTINCT
         pr.id,
-        pr.normalized_name AS "normalizedName",
+        COALESCE(NULLIF(pi.normalized_name_override, ''), pr.normalized_name) AS "normalizedName",
         pr.category
       FROM products pr
       JOIN purchase_items pi ON pi.product_id = pr.id
       JOIN purchases pu ON pu.id = pi.purchase_id
       WHERE pu.user_id = $1
-      ORDER BY pr.normalized_name ASC
+      ORDER BY "normalizedName" ASC
     `,
     [userId]
   );
@@ -222,11 +226,8 @@ export async function listPriceHistory(userId) {
         s.name AS "storeName"
       FROM price_history ph
       JOIN stores s ON s.id = ph.store_id
-      JOIN purchase_items pi ON pi.product_id = ph.product_id
-      JOIN purchases pu ON pu.id = pi.purchase_id
-      WHERE pu.user_id = $1
-      GROUP BY ph.id, s.name
-      ORDER BY ph.date ASC
+      WHERE ph.user_id = $1
+      ORDER BY ph.date ASC, ph.id ASC
     `,
     [userId]
   );
@@ -259,14 +260,15 @@ export async function getProductSnapshot(productId, userId) {
   const [productResult, historyResult, purchasesResult] = await Promise.all([
     pool.query(
       `
-        SELECT DISTINCT
+        SELECT
           pr.id,
-          pr.normalized_name AS "normalizedName",
+          COALESCE(MAX(NULLIF(pi.normalized_name_override, '')), pr.normalized_name) AS "normalizedName",
           pr.category
         FROM products pr
         JOIN purchase_items pi ON pi.product_id = pr.id
         JOIN purchases pu ON pu.id = pi.purchase_id
         WHERE pr.id = $1 AND pu.user_id = $2
+        GROUP BY pr.id, pr.normalized_name, pr.category
       `,
       [productId, userId]
     ),
@@ -281,11 +283,8 @@ export async function getProductSnapshot(productId, userId) {
           s.name AS "storeName"
         FROM price_history ph
         JOIN stores s ON s.id = ph.store_id
-        JOIN purchase_items pi ON pi.product_id = ph.product_id
-        JOIN purchases pu ON pu.id = pi.purchase_id
-        WHERE ph.product_id = $1 AND pu.user_id = $2
-        GROUP BY ph.id, s.name
-        ORDER BY ph.date ASC
+        WHERE ph.product_id = $1 AND ph.user_id = $2
+        ORDER BY ph.date ASC, ph.id ASC
       `,
       [productId, userId]
     ),
@@ -411,10 +410,17 @@ export async function saveParsedReceipt(parsedReceipt, userId) {
 
       await client.query(
         `
-          INSERT INTO price_history (id, product_id, store_id, price, date)
-          VALUES (gen_random_uuid(), $1, $2, $3, $4)
+          INSERT INTO price_history (id, product_id, store_id, purchase_id, user_id, price, date)
+          VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6)
         `,
-        [product.id, foundStore.id, item.unitPrice, parsedReceipt.purchaseDate]
+        [
+          product.id,
+          foundStore.id,
+          purchaseResult.rows[0].id,
+          userId,
+          item.unitPrice,
+          parsedReceipt.purchaseDate
+        ]
       );
     }
 
@@ -502,7 +508,7 @@ export async function updatePurchaseItem(userId, itemId, payload) {
   for (const [key, column] of Object.entries(mapping)) {
     if (payload[key] !== undefined) {
       fields.push(`${column} = $${index}`);
-      values.push(payload[key]);
+      values.push(sanitizePurchaseItemValue(key, payload[key]));
       index += 1;
     }
   }
@@ -555,10 +561,24 @@ async function canUseDatabase() {
     return false;
   }
 
+  const now = Date.now();
+  const ttl = databaseAvailability.value ? 30000 : 5000;
+  if (databaseAvailability.value !== null && now - databaseAvailability.checkedAt < ttl) {
+    return databaseAvailability.value;
+  }
+
   try {
     await getPool().query("SELECT 1");
+    databaseAvailability = {
+      checkedAt: now,
+      value: true
+    };
     return true;
   } catch (_error) {
+    databaseAvailability = {
+      checkedAt: now,
+      value: false
+    };
     return false;
   }
 }
@@ -585,4 +605,18 @@ function buildGuestIdentity(guestCode) {
     email: `guest+${guestCode}@${GUEST_DOMAIN}`,
     fullName: `Convidado ${guestCode}`
   };
+}
+
+function sanitizePurchaseItemValue(key, value) {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const trimmed = value.trim();
+
+  if (key === "normalizedProductName" || key === "userComment") {
+    return trimmed || null;
+  }
+
+  return trimmed;
 }

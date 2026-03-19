@@ -13,16 +13,24 @@ function money(value) {
 export function ProductPageClient({ id }) {
   const { token } = useAuth();
   const [productData, setProductData] = useState(null);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!token) return;
-    api.product(token, id).then(setProductData).catch(() => setProductData(null));
+
+    api
+      .product(token, id)
+      .then(setProductData)
+      .catch((nextError) => {
+        setError(nextError.message);
+        setProductData(null);
+      });
   }, [token, id]);
 
   return (
-    <AuthGate title="Entre para consultar o historico do produto">
+    <AuthGate title="Abra o historico do produto">
       {!productData ? (
-        <div className="glass rounded-[24px] p-6">Carregando produto...</div>
+        <div className="glass rounded-[24px] p-6">{error || "Carregando produto..."}</div>
       ) : (
         <ProductContent productData={productData} />
       )}
@@ -73,7 +81,7 @@ function ProductContent({ productData }) {
               </div>
               <p className="mt-2 text-sm text-[var(--muted)]">{purchase.originalName}</p>
               <p className="mt-3 text-sm">
-                {purchase.quantity} un. • {money(purchase.unitPrice)} • total {money(purchase.totalPrice)}
+                {purchase.quantity} un. - {money(purchase.unitPrice)} - total {money(purchase.totalPrice)}
               </p>
             </article>
           ))}

@@ -2,6 +2,9 @@ const API_BASE = "/api";
 
 async function request(path, options = {}) {
   const headers = new Headers(options.headers || {});
+  const controller = new AbortController();
+  const timeoutMs = options.timeoutMs || 15000;
+  const timeout = setTimeout(() => controller.abort(`timeout:${timeoutMs}`), timeoutMs);
 
   if (options.token) {
     headers.set("authorization", `Bearer ${options.token}`);
@@ -14,12 +17,25 @@ async function request(path, options = {}) {
     body = JSON.stringify(body);
   }
 
-  const response = await fetch(`${API_BASE}${path}`, {
-    method: options.method || "GET",
-    headers,
-    body,
-    cache: "no-store"
-  });
+  let response;
+
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      method: options.method || "GET",
+      headers,
+      body,
+      cache: "no-store",
+      signal: controller.signal
+    });
+  } catch (error) {
+    clearTimeout(timeout);
+    if (error?.name === "AbortError") {
+      throw new Error("A requisicao demorou mais do que o esperado. Tente novamente.");
+    }
+    throw error;
+  }
+
+  clearTimeout(timeout);
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -31,7 +47,7 @@ async function request(path, options = {}) {
 
 export const api = {
   guest(guestCode = "") {
-    return request("/auth/guest", { method: "POST", body: { guestCode } });
+    return request("/auth/guest", { method: "POST", body: { guestCode }, timeoutMs: 25000 });
   },
   register(payload) {
     return request("/auth/register", { method: "POST", body: payload });
@@ -70,7 +86,8 @@ export const api = {
     return request("/upload-receipt", {
       method: "POST",
       token,
-      body: payload
+      body: payload,
+      timeoutMs: 240000
     });
   },
   askAi(token, question) {

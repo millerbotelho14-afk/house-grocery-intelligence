@@ -9,21 +9,35 @@ export function DataStudioClient() {
   const { token } = useAuth();
   const [items, setItems] = useState(null);
   const [savingId, setSavingId] = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!token) return;
-    api.dataItems(token).then(setItems).catch(() => setItems([]));
+    api
+      .dataItems(token)
+      .then(setItems)
+      .catch((nextError) => {
+        setError(nextError.message);
+        setItems([]);
+      });
   }, [token]);
 
   async function saveItem(item) {
     setSavingId(item.id);
-    const updated = await api.updatePurchaseItem(token, item.id, item);
-    setItems((current) => current.map((entry) => (entry.id === item.id ? { ...entry, ...updated } : entry)));
-    setSavingId("");
+    setError("");
+
+    try {
+      const updated = await api.updatePurchaseItem(token, item.id, item);
+      setItems((current) => current.map((entry) => (entry.id === item.id ? { ...entry, ...updated } : entry)));
+    } catch (nextError) {
+      setError(nextError.message);
+    } finally {
+      setSavingId("");
+    }
   }
 
   return (
-    <AuthGate title="Entre para revisar e corrigir seus dados">
+    <AuthGate title="Revise e corrija seus dados">
       {!items ? (
         <div className="glass rounded-[24px] p-6">Carregando itens do banco...</div>
       ) : (
@@ -33,6 +47,7 @@ export function DataStudioClient() {
             <p className="mt-2 text-[var(--muted)]">
               Aqui voce revisa os itens lidos do cupom, corrige divergencias e adiciona comentarios. O app reflete essas alteracoes.
             </p>
+            {error ? <p className="mt-4 text-sm text-red-700">{error}</p> : null}
           </div>
           {items.map((item, index) => (
             <EditableItemCard

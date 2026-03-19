@@ -5,6 +5,6 @@ const storage = multer.memoryStorage();
 export const receiptUpload = multer({
   storage,
   limits: {
-    fileSize: 10 * 1024 * 1024
+    fileSize: 20 * 1024 * 1024
   }
 });

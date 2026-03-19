@@ -15,20 +15,24 @@ export function PriceLookupClient() {
   const [query, setQuery] = useState("azeite");
   const [lookup, setLookup] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!token) return;
+
     const timeout = setTimeout(async () => {
       try {
+        setError("");
         const [nextLookup, nextProducts] = await Promise.all([
           api.priceLookup(token, query),
           api.products(token, query)
         ]);
         setLookup(nextLookup);
         setSuggestions(nextProducts);
-      } catch (_error) {
+      } catch (nextError) {
         setLookup(null);
         setSuggestions([]);
+        setError(nextError.message);
       }
     }, 200);
 
@@ -36,7 +40,7 @@ export function PriceLookupClient() {
   }, [query, token]);
 
   return (
-    <AuthGate title="Entre para consultar seus precos no mercado">
+    <AuthGate title="Abra sua consulta de preco no mercado">
       <div className="grid gap-6 lg:grid-cols-[1fr_0.9fr]">
         <section className="glass rounded-[28px] p-5">
           <p className="text-sm uppercase tracking-[0.25em] text-[var(--muted)]">Price Lookup</p>
@@ -57,7 +61,7 @@ export function PriceLookupClient() {
               <Metric label="Data" value={lookup.lastPurchaseDate} />
             </div>
           ) : (
-            <p className="mt-6 text-sm text-[var(--muted)]">Busque um produto para ver seus historicos.</p>
+            <p className="mt-6 text-sm text-[var(--muted)]">{error || "Busque um produto para ver seus historicos."}</p>
           )}
         </section>
 
@@ -75,7 +79,7 @@ export function PriceLookupClient() {
               >
                 <p className="font-semibold">{product.normalizedName}</p>
                 <p className="mt-1 text-sm text-[var(--muted)]">
-                  {product.category} • {product.matches} registros
+                  {product.category} - {product.matches} registros
                 </p>
               </Link>
             ))}

@@ -3,7 +3,7 @@ export function LineBars({ data }) {
   return (
     <div className="glass rounded-[24px] p-5">
       <div className="mb-5 flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Monthly Spending Chart</h2>
+        <h2 className="text-xl font-semibold">Gasto mensal</h2>
         <span className="text-sm text-[var(--muted)]">Ultimos meses</span>
       </div>
       <div className="flex h-48 items-end gap-4">
@@ -30,7 +30,7 @@ export function PieLegend({ data }) {
   const total = data.reduce((sum, item) => sum + item.total, 0);
   return (
     <div className="glass rounded-[24px] p-5">
-      <h2 className="text-xl font-semibold">Spending by Category</h2>
+      <h2 className="text-xl font-semibold">Gasto por categoria</h2>
       <div className="mt-6 space-y-3">
         {data.map((item, index) => {
           const percent = total ? Math.round((item.total / total) * 100) : 0;

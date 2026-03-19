@@ -61,16 +61,17 @@ function parseDanfeOcr(lines) {
   const headerIndex = normalizedLines.findIndex((line) =>
     /DOCUMENTO AUXILIAR DA NOTA FISCAL DE CONSUMIDOR/i.test(line)
   );
+  const quantityPattern = /Qtde\s*\.?\s*:\s*([\d.,]+)/i;
 
   for (let index = 0; index < normalizedLines.length; index += 1) {
     const line = normalizedLines[index];
     const nextLine = normalizedLines[index + 1] || "";
 
     if (!line || !nextLine) continue;
-    if (!/Qtde\.:/i.test(nextLine)) continue;
+    if (!quantityPattern.test(nextLine)) continue;
     if (isIgnoredDanfeLine(line)) continue;
 
-    const quantityMatch = nextLine.match(/Qtde\.:([\d.,]+)/i);
+    const quantityMatch = nextLine.match(quantityPattern);
     const numbers = [...nextLine.matchAll(/(\d+[.,]\d{1,2})/g)].map((match) => toNumber(match[1]));
 
     if (!quantityMatch || numbers.length < 2) continue;
@@ -89,6 +90,10 @@ function parseDanfeOcr(lines) {
       totalPrice,
       category: normalized.category
     });
+  }
+
+  if (!items.length) {
+    return parseGenericTextReceipt(normalizedLines);
   }
 
   return {

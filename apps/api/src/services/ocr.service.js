@@ -50,8 +50,14 @@ async function extractFromFile(file) {
 }
 
 async function extractFromPdf(buffer) {
-  const parsed = await pdfParse(buffer);
-  const plainText = (parsed.text || "").trim();
+  let plainText = "";
+
+  try {
+    const parsed = await pdfParse(buffer);
+    plainText = (parsed.text || "").trim();
+  } catch (_error) {
+    plainText = "";
+  }
 
   if (plainText.replace(/\s/g, "").length > 80) {
     return plainText;
@@ -64,7 +70,7 @@ async function extractFromPdf(buffer) {
 
   try {
     const pdftoppm = await resolvePdfToPpm();
-    await execFileAsync(pdftoppm, ["-png", "-r", "220", pdfPath, outputPrefix]);
+    await execFileAsync(pdftoppm, ["-png", "-r", "180", pdfPath, outputPrefix]);
 
     const files = (await fs.readdir(tempDir))
       .filter((file) => file.endsWith(".png"))
@@ -75,16 +81,23 @@ async function extractFromPdf(buffer) {
     }
 
     const worker = await createWorker("por");
-    const chunks = [];
 
-    for (const file of files) {
-      const pagePath = path.join(tempDir, file);
-      const result = await worker.recognize(pagePath);
-      chunks.push(result.data.text || "");
+    try {
+      const chunks = [];
+
+      for (const fileName of files) {
+        const pagePath = path.join(tempDir, fileName);
+        const result = await worker.recognize(pagePath);
+        chunks.push(result.data.text || "");
+      }
+
+      const ocrText = chunks.join("\n").trim();
+      return ocrText || plainText;
+    } finally {
+      await worker.terminate();
     }
-
-    await worker.terminate();
-    return chunks.join("\n");
+  } catch (_error) {
+    return plainText;
   } finally {
     await fs.rm(tempDir, { recursive: true, force: true });
   }
@@ -92,9 +105,13 @@ async function extractFromPdf(buffer) {
 
 async function runImageOcr(buffer) {
   const worker = await createWorker("por");
-  const result = await worker.recognize(buffer);
-  await worker.terminate();
-  return result.data.text || "";
+
+  try {
+    const result = await worker.recognize(buffer);
+    return result.data.text || "";
+  } finally {
+    await worker.terminate();
+  }
 }
 
 async function resolvePdfToPpm() {

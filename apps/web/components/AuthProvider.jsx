@@ -11,9 +11,11 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [guestCode, setGuestCode] = useState("");
   const [ready, setReady] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    bootstrapGuestSession();
+    void bootstrapGuestSession();
   }, []);
 
   async function login(credentials) {
@@ -41,6 +43,7 @@ export function AuthProvider({ children }) {
     setToken(null);
     setUser(null);
     setGuestCode("");
+    setReady(false);
     await bootstrapGuestSession();
   }
 
@@ -57,6 +60,8 @@ export function AuthProvider({ children }) {
   }
 
   async function bootstrapGuestSession() {
+    setLoading(true);
+    setError("");
     const saved = getSavedSession();
 
     try {
@@ -68,25 +73,44 @@ export function AuthProvider({ children }) {
           guestCode: response.user?.guestCode || saved.guestCode || ""
         });
         setReady(true);
+        setLoading(false);
         return;
       }
-    } catch (_error) {
+    } catch (error) {
       window.localStorage.removeItem(STORAGE_KEY);
       setToken(null);
       setUser(null);
       setGuestCode("");
+      setError(error.message || "Nao consegui restaurar sua sessao.");
     }
 
     try {
       const guestSession = await api.guest(saved?.guestCode || "");
       persist(guestSession);
+      setError("");
+    } catch (error) {
+      setError(error.message || "Nao consegui iniciar seu modo convidado.");
     } finally {
       setReady(true);
+      setLoading(false);
     }
   }
 
   return (
-    <AuthContext.Provider value={{ token, user, guestCode, ready, login, register, logout }}>
+    <AuthContext.Provider
+      value={{
+        token,
+        user,
+        guestCode,
+        ready,
+        loading,
+        error,
+        retrySession: bootstrapGuestSession,
+        login,
+        register,
+        logout
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

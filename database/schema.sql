@@ -49,9 +49,32 @@ CREATE TABLE IF NOT EXISTS price_history (
   id UUID PRIMARY KEY,
   product_id UUID NOT NULL REFERENCES products(id),
   store_id UUID NOT NULL REFERENCES stores(id),
+  purchase_id UUID REFERENCES purchases(id),
+  user_id UUID REFERENCES users(id),
   price NUMERIC(10, 2) NOT NULL,
   date DATE NOT NULL
 );
+ALTER TABLE price_history ADD COLUMN IF NOT EXISTS purchase_id UUID REFERENCES purchases(id);
+ALTER TABLE price_history ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id);
+
+UPDATE price_history ph
+SET
+  purchase_id = candidate.purchase_id,
+  user_id = candidate.user_id
+FROM (
+  SELECT DISTINCT ON (ph_inner.id)
+    ph_inner.id,
+    pu.id AS purchase_id,
+    pu.user_id
+  FROM price_history ph_inner
+  JOIN purchases pu ON pu.store_id = ph_inner.store_id
+    AND pu.purchase_date = ph_inner.date
+  JOIN purchase_items pi ON pi.purchase_id = pu.id
+    AND pi.product_id = ph_inner.product_id
+  ORDER BY ph_inner.id, pu.id
+) AS candidate
+WHERE ph.id = candidate.id
+  AND (ph.purchase_id IS NULL OR ph.user_id IS NULL);
 
 CREATE TABLE IF NOT EXISTS user_sessions (
   id UUID PRIMARY KEY,
@@ -63,5 +86,6 @@ CREATE TABLE IF NOT EXISTS user_sessions (
 
 CREATE INDEX IF NOT EXISTS idx_products_search_vector ON products USING GIN(search_vector);
 CREATE INDEX IF NOT EXISTS idx_price_history_product_date ON price_history(product_id, date DESC);
+CREATE INDEX IF NOT EXISTS idx_price_history_user_date ON price_history(user_id, date DESC);
 CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(token);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_stores_name_unique ON stores(name);
