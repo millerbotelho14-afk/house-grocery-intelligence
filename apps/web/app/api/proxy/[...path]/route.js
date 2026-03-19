@@ -1,4 +1,6 @@
-const API_BASE = "http://localhost:4000/api";
+const API_BASE =
+  process.env.INTERNAL_API_URL ||
+  `http://127.0.0.1:${process.env.PORT_API || "4000"}/api`;
 
 export async function GET(request, context) {
   return proxyRequest(request, context);
@@ -24,49 +26,60 @@ async function proxyRequest(request, context) {
   const path = context.params.path.join("/");
   const url = new URL(request.url);
   const target = `${API_BASE}/${path}${url.search}`;
-  const contentType = request.headers.get("content-type") || "";
+  try {
+    const contentType = request.headers.get("content-type") || "";
 
-  const headers = new Headers();
-  const auth = request.headers.get("authorization");
-  if (auth) {
-    headers.set("authorization", auth);
-  }
+    const headers = new Headers();
+    const auth = request.headers.get("authorization");
+    if (auth) {
+      headers.set("authorization", auth);
+    }
 
-  let body;
-  if (request.method !== "GET" && request.method !== "HEAD") {
-    if (contentType.includes("multipart/form-data")) {
-      const incoming = await request.formData();
-      const forwarded = new FormData();
-      for (const [key, value] of incoming.entries()) {
-        forwarded.append(key, value);
-      }
-      body = forwarded;
-    } else {
-      const text = await request.text();
-      if (text) {
-        body = text;
-      }
-      if (contentType) {
-        headers.set("content-type", contentType);
+    let body;
+    if (request.method !== "GET" && request.method !== "HEAD") {
+      if (contentType.includes("multipart/form-data")) {
+        const incoming = await request.formData();
+        const forwarded = new FormData();
+        for (const [key, value] of incoming.entries()) {
+          forwarded.append(key, value);
+        }
+        body = forwarded;
+      } else {
+        const text = await request.text();
+        if (text) {
+          body = text;
+        }
+        if (contentType) {
+          headers.set("content-type", contentType);
+        }
       }
     }
+
+    const response = await fetch(target, {
+      method: request.method,
+      headers,
+      body
+    });
+
+    const responseBody = await response.arrayBuffer();
+    const responseHeaders = new Headers();
+    const responseType = response.headers.get("content-type");
+    if (responseType) {
+      responseHeaders.set("content-type", responseType);
+    }
+
+    return new Response(responseBody, {
+      status: response.status,
+      headers: responseHeaders
+    });
+  } catch (error) {
+    return Response.json(
+      {
+        message: "Falha ao conectar o frontend com a API interna",
+        detail: error instanceof Error ? error.message : String(error),
+        target
+      },
+      { status: 502 }
+    );
   }
-
-  const response = await fetch(target, {
-    method: request.method,
-    headers,
-    body
-  });
-
-  const responseBody = await response.arrayBuffer();
-  const responseHeaders = new Headers();
-  const responseType = response.headers.get("content-type");
-  if (responseType) {
-    responseHeaders.set("content-type", responseType);
-  }
-
-  return new Response(responseBody, {
-    status: response.status,
-    headers: responseHeaders
-  });
 }
