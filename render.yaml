@@ -3,7 +3,7 @@ services:
     name: house-grocery-intelligence
     runtime: docker
     dockerfilePath: ./Dockerfile
-    plan: starter
+    plan: free
     envVars:
       - key: PORT
         value: 3000
