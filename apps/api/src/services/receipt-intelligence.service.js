@@ -108,6 +108,7 @@ function shouldUseOpenAi(type, file) {
 }
 
 async function extractReceiptWithOpenAi({ type, file }) {
+  const model = resolveReceiptModel(type);
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
@@ -115,9 +116,7 @@ async function extractReceiptWithOpenAi({ type, file }) {
       Authorization: `Bearer ${env.openAiApiKey}`
     },
     body: JSON.stringify({
-      model: env.openAiReceiptModel,
-      temperature: 0,
-      store: false,
+      model,
       max_output_tokens: 4000,
       instructions: RECEIPT_PROMPT,
       text: {
@@ -240,6 +239,21 @@ function normalizeMimeType(type, mimeType) {
   }
 
   return "application/pdf";
+}
+
+function resolveReceiptModel(type) {
+  const configured = String(env.openAiReceiptModel || "").trim() || "gpt-4o-mini";
+
+  if (["pdf", "image"].includes(type) && !supportsFileInputs(configured)) {
+    return "gpt-4o-mini";
+  }
+
+  return configured;
+}
+
+function supportsFileInputs(model) {
+  const normalized = String(model || "").toLowerCase();
+  return normalized.startsWith("gpt-4o") || normalized.startsWith("o1");
 }
 
 function cleanText(value) {
