@@ -18,5 +18,12 @@ export function createApp() {
     });
   });
 
+  app.use((error, _req, res, _next) => {
+    console.error("API error:", error);
+    res.status(error?.status || 500).json({
+      message: error?.message || "Erro interno"
+    });
+  });
+
   return app;
 }

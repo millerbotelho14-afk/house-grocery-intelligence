@@ -35,9 +35,13 @@ a {
 }
 
 .shell {
-  max-width: 1180px;
+  max-width: 1400px;
   margin: 0 auto;
-  padding: 28px 16px 88px;
+  padding: 24px 16px 72px;
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
 }
 
 .glass {
@@ -55,6 +59,15 @@ a {
 .stat-pill {
   border: 1px solid rgba(17, 17, 17, 0.08);
   background: var(--accent-soft);
+}
+
+.app-sidebar {
+  position: sticky;
+  top: 20px;
+}
+
+.app-content {
+  min-width: 0;
 }
 
 input,
@@ -81,30 +94,28 @@ select:focus {
 }
 
 .nav-dock {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  padding: 10px;
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.74);
-  border: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .nav-pill {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 10px;
   padding: 12px 14px;
   border-radius: 18px;
   color: var(--ink);
-  background: transparent;
+  background: rgba(255, 255, 255, 0.45);
+  border: 1px solid transparent;
   transition: transform 180ms ease, background 180ms ease, box-shadow 180ms ease, color 180ms ease;
 }
 
 .nav-pill:hover {
   transform: translateY(-1px);
   background: rgba(255, 255, 255, 0.84);
+  border-color: var(--line);
 }
 
 .nav-pill-active {
@@ -120,7 +131,22 @@ select:focus {
 }
 
 @media (max-width: 768px) {
+  .shell {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .app-sidebar {
+    position: static;
+  }
+
   .nav-dock {
+    display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .nav-pill {
+    justify-content: center;
   }
 }

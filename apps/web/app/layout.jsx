@@ -13,8 +13,10 @@ export default function RootLayout({ children }) {
       <body>
         <AuthProvider>
           <main className="shell">
-            <ShellHeader />
-            {children}
+            <aside className="app-sidebar">
+              <ShellHeader />
+            </aside>
+            <section className="app-content">{children}</section>
           </main>
         </AuthProvider>
       </body>

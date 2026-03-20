@@ -28,6 +28,7 @@ export function UploadReceiptForm() {
   const [source, setSource] = useState("");
   const [file, setFile] = useState(null);
   const [draft, setDraft] = useState(null);
+  const [previewMeta, setPreviewMeta] = useState({ provider: "", extractionSummary: "" });
   const [warnings, setWarnings] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -60,6 +61,10 @@ export function UploadReceiptForm() {
 
       const response = await api.uploadReceipt(token, payload);
       setDraft(response.parsedReceipt);
+      setPreviewMeta({
+        provider: response.provider || "",
+        extractionSummary: response.extractionSummary || ""
+      });
       setWarnings(response.warnings || []);
     } catch (err) {
       setError(err.message);
@@ -101,6 +106,7 @@ export function UploadReceiptForm() {
     setError("");
     setSuccess("");
     setWarnings([]);
+    setPreviewMeta({ provider: "", extractionSummary: "" });
     setDraft(nextMode === "manual" ? createManualDraft() : null);
   }
 
@@ -121,6 +127,7 @@ export function UploadReceiptForm() {
                 const active = mode === entry.id;
                 return (
                   <button
+                    type="button"
                     key={entry.id}
                     onClick={() => switchMode(entry.id)}
                     className={`rounded-full px-4 py-2 text-sm transition ${
@@ -184,7 +191,7 @@ export function UploadReceiptForm() {
                   disabled={loading}
                   className="rounded-full bg-[var(--ink)] px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
                 >
-                  {loading ? "Lendo cupom..." : "Ler e preparar revisao"}
+                  {loading ? "Lendo cupom..." : "Analisar com IA e preparar revisao"}
                 </button>
               </form>
             ) : (
@@ -193,10 +200,12 @@ export function UploadReceiptForm() {
                   Preencha os dados essenciais e monte os itens da compra. Quando terminar, salve tudo direto no banco.
                 </div>
                 <button
+                  type="button"
                   onClick={() => {
                     setDraft(createManualDraft());
                     setWarnings([]);
                     setSuccess("");
+                    setPreviewMeta({ provider: "", extractionSummary: "" });
                   }}
                   className="rounded-full border border-[var(--line)] px-5 py-3 text-sm"
                 >
@@ -216,15 +225,34 @@ export function UploadReceiptForm() {
                   : "A compra manual vai aparecer aqui assim que o modo manual for ativado."}
               </div>
             ) : (
-              <PurchaseDraftEditor
-                draft={draft}
-                onChange={setDraft}
-                onSubmit={handleSave}
-                submitLabel="Confirmar e salvar no banco"
-                saving={saving}
-                warnings={warnings}
-                successMessage={success}
-              />
+              <div className="space-y-4">
+                {mode === "receipt" ? (
+                  <div className="glass rounded-[24px] p-5">
+                    <div className="flex flex-wrap items-center gap-3 text-sm">
+                      <span className="rounded-full bg-[var(--accent-soft)] px-3 py-2 text-[var(--ink)]">
+                        {previewMeta.provider === "openai" ? "Leitura via OpenAI" : "Fallback local"}
+                      </span>
+                      {previewMeta.extractionSummary ? (
+                        <span className="text-[var(--muted)]">{previewMeta.extractionSummary}</span>
+                      ) : (
+                        <span className="text-[var(--muted)]">
+                          Revise item por item e ajuste o que for necessario antes de gravar.
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+
+                <PurchaseDraftEditor
+                  draft={draft}
+                  onChange={setDraft}
+                  onSubmit={handleSave}
+                  submitLabel="Confirmar e salvar no banco"
+                  saving={saving}
+                  warnings={warnings}
+                  successMessage={success}
+                />
+              </div>
             )}
           </section>
         </div>
@@ -246,7 +274,8 @@ function createManualDraft() {
         category: "Outros",
         quantity: 1,
         unitPrice: 0,
-        totalPrice: 0
+        totalPrice: 0,
+        userComment: ""
       }
     ]
   };

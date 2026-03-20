@@ -31,6 +31,8 @@ export function normalizeReceiptDraft(input = {}) {
 export function buildReceiptWarnings(draft) {
   const warnings = [];
   const zeroValueItems = draft.items.filter((item) => item.totalPrice <= 0 || item.unitPrice <= 0);
+  const totalFromItems = roundMoney(draft.items.reduce((sum, item) => sum + item.totalPrice, 0));
+  const totalGap = Math.abs(roundMoney(draft.totalValue) - totalFromItems);
 
   if (!draft.items.length) {
     warnings.push("Nenhum item foi identificado automaticamente.");
@@ -48,6 +50,10 @@ export function buildReceiptWarnings(draft) {
     warnings.push("A loja nao foi identificada com confianca.");
   }
 
+  if (draft.items.length && totalGap > 0.09) {
+    warnings.push("O total da compra nao bate com a soma dos itens. Vale revisar antes de salvar.");
+  }
+
   return warnings;
 }
 
@@ -58,7 +64,8 @@ export function createBlankReceiptItem() {
     category: "Outros",
     quantity: 1,
     unitPrice: 0,
-    totalPrice: 0
+    totalPrice: 0,
+    userComment: ""
   };
 }
 
@@ -83,7 +90,8 @@ function normalizeReceiptItem(item = {}, index = 0) {
     category: cleanText(item.category) || normalized.category || "Outros",
     quantity,
     unitPrice,
-    totalPrice
+    totalPrice,
+    userComment: cleanText(item.userComment)
   };
 }
 

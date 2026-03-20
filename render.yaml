@@ -15,6 +15,8 @@ services:
         sync: false
       - key: OPENAI_MODEL
         value: gpt-4.1-mini
+      - key: OPENAI_RECEIPT_MODEL
+        value: gpt-4.1-mini
 
 databases:
   - name: house-grocery-db

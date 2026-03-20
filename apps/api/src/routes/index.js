@@ -15,22 +15,25 @@ import { requireAuth } from "../middleware/auth.middleware.js";
 import { receiptUpload } from "../middleware/upload.middleware.js";
 
 const router = Router();
+const asyncHandler = (handler) => (req, res, next) => {
+  Promise.resolve(handler(req, res, next)).catch(next);
+};
 
-router.post("/auth/register", register);
-router.post("/auth/login", login);
-router.post("/auth/guest", guest);
-router.get("/auth/me", me);
-router.post("/auth/logout", requireAuth, logout);
+router.post("/auth/register", asyncHandler(register));
+router.post("/auth/login", asyncHandler(login));
+router.post("/auth/guest", asyncHandler(guest));
+router.get("/auth/me", asyncHandler(me));
+router.post("/auth/logout", requireAuth, asyncHandler(logout));
 
-router.post("/upload-receipt", requireAuth, receiptUpload.single("file"), previewReceipt);
-router.post("/purchases", requireAuth, createPurchase);
-router.get("/products", requireAuth, listProducts);
-router.get("/products/:id", requireAuth, getProduct);
-router.get("/price-lookup", requireAuth, priceLookup);
-router.get("/dashboard", requireAuth, dashboard);
-router.get("/purchases", requireAuth, purchases);
-router.get("/data-items", requireAuth, getEditableItems);
-router.patch("/purchase-items/:id", requireAuth, updateEditableItem);
-router.post("/ai/ask", requireAuth, askAi);
+router.post("/upload-receipt", requireAuth, receiptUpload.single("file"), asyncHandler(previewReceipt));
+router.post("/purchases", requireAuth, asyncHandler(createPurchase));
+router.get("/products", requireAuth, asyncHandler(listProducts));
+router.get("/products/:id", requireAuth, asyncHandler(getProduct));
+router.get("/price-lookup", requireAuth, asyncHandler(priceLookup));
+router.get("/dashboard", requireAuth, asyncHandler(dashboard));
+router.get("/purchases", requireAuth, asyncHandler(purchases));
+router.get("/data-items", requireAuth, asyncHandler(getEditableItems));
+router.patch("/purchase-items/:id", requireAuth, asyncHandler(updateEditableItem));
+router.post("/ai/ask", requireAuth, asyncHandler(askAi));
 
 export default router;

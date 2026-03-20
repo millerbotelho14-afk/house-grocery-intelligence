@@ -26,28 +26,29 @@ export function ShellHeader() {
   const { guestCode, user } = useAuth();
 
   return (
-    <header className="glass mb-8 rounded-[32px] p-5 md:p-7">
+    <header className="glass rounded-[32px] p-5 md:p-6">
       <div className="flex flex-col gap-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p className="text-sm uppercase tracking-[0.32em] text-[var(--muted)]">House Grocery Intelligence</p>
-            <h1 className="mt-3 max-w-3xl text-3xl font-semibold leading-tight md:text-5xl">
-              Sua rotina de supermercado, com memoria de produto e clareza de decisao.
-            </h1>
-          </div>
+        <div>
+          <p className="text-xs uppercase tracking-[0.32em] text-[var(--muted)]">House Grocery Intelligence</p>
+          <h1 className="mt-3 text-3xl font-semibold leading-tight">Compras da casa sem planilha.</h1>
+          <p className="mt-3 text-sm text-[var(--muted)]">
+            Leia cupons com IA, ajuste os dados em tabela e acompanhe seus precos no dia a dia.
+          </p>
+        </div>
 
-          <div className="flex flex-wrap items-center gap-3 text-sm text-[var(--muted)]">
-            {user ? (
-              <span className="rounded-full bg-[var(--panel-strong)] px-4 py-2">
-                Espaco ativo: <span className="font-semibold text-[var(--ink)]">{user.fullName || user.email}</span>
-              </span>
-            ) : null}
-            {guestCode ? (
-              <span className="rounded-full border border-[var(--line)] px-4 py-2 text-[var(--ink)]">
-                Codigo {guestCode}
-              </span>
-            ) : null}
-          </div>
+        <div className="flex flex-col gap-2 text-sm">
+          {user ? (
+            <span className="rounded-[20px] bg-[var(--panel-strong)] px-4 py-3 text-[var(--muted)]">
+              Espaco ativo
+              <span className="mt-1 block font-semibold text-[var(--ink)]">{user.fullName || user.email}</span>
+            </span>
+          ) : null}
+          {guestCode ? (
+            <span className="rounded-[20px] border border-[var(--line)] px-4 py-3 text-[var(--ink)]">
+              Codigo convidado
+              <span className="mt-1 block font-semibold">{guestCode}</span>
+            </span>
+          ) : null}
         </div>
 
         <nav className="nav-dock">
@@ -65,6 +66,10 @@ export function ShellHeader() {
             );
           })}
         </nav>
+
+        <div className="rounded-[24px] bg-[var(--panel-strong)] px-4 py-4 text-sm text-[var(--muted)]">
+          Tudo o que voce confirmar fica salvo no seu banco e reaparece no dashboard, lookup e historico.
+        </div>
       </div>
     </header>
   );

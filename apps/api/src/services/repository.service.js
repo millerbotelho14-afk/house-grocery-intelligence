@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { getPool, isDatabaseConfigured } from "../config/database.js";
 import { mockDatabase } from "../data/mockDatabase.js";
+import { normalizeProductName } from "./normalization.service.js";
 import { normalizeReceiptDraft } from "./receipt-draft.service.js";
 import { hashPassword } from "../utils/auth.js";
 
@@ -386,7 +387,7 @@ export async function saveParsedReceipt(parsedReceipt, userId) {
         ).rows[0];
       }
 
-      await client.query(
+      const purchaseItemResult = await client.query(
         `
           INSERT INTO purchase_items (
             id,
@@ -399,7 +400,8 @@ export async function saveParsedReceipt(parsedReceipt, userId) {
             total_price,
             user_comment
           )
-          VALUES (gen_random_uuid(), $1, $2, $3, NULL, $4, $5, $6, NULL)
+          VALUES (gen_random_uuid(), $1, $2, $3, NULL, $4, $5, $6, $7)
+          RETURNING id
         `,
         [
           purchaseResult.rows[0].id,
@@ -407,19 +409,21 @@ export async function saveParsedReceipt(parsedReceipt, userId) {
           item.originalName,
           item.quantity,
           item.unitPrice,
-          item.totalPrice
+          item.totalPrice,
+          item.userComment || null
         ]
       );
 
       await client.query(
         `
-          INSERT INTO price_history (id, product_id, store_id, purchase_id, user_id, price, date)
-          VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6)
+          INSERT INTO price_history (id, product_id, store_id, purchase_id, purchase_item_id, user_id, price, date)
+          VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7)
         `,
         [
           product.id,
           foundStore.id,
           purchaseResult.rows[0].id,
+          purchaseItemResult.rows[0].id,
           userId,
           item.unitPrice,
           safeReceipt.purchaseDate
@@ -495,68 +499,189 @@ export async function listEditableItems(userId) {
 }
 
 export async function updatePurchaseItem(userId, itemId, payload) {
-  const fields = [];
-  const values = [];
-  let index = 1;
-
-  const mapping = {
-    originalName: "original_name",
-    normalizedProductName: "normalized_name_override",
-    quantity: "quantity",
-    unitPrice: "unit_price",
-    totalPrice: "total_price",
-    userComment: "user_comment"
-  };
-
-  for (const [key, column] of Object.entries(mapping)) {
-    if (payload[key] !== undefined) {
-      fields.push(`${column} = $${index}`);
-      values.push(sanitizePurchaseItemValue(key, payload[key]));
-      index += 1;
-    }
-  }
-
-  if (!fields.length) {
+  if (!(await canUseDatabase())) {
     return null;
   }
 
-  values.push(itemId, userId);
-  const { rows } = await getPool().query(
-    `
-      WITH updated AS (
-        UPDATE purchase_items pi
-        SET ${fields.join(", ")}
-        FROM purchases pu
-        WHERE pi.id = $${index}
-          AND pu.id = pi.purchase_id
-          AND pu.user_id = $${index + 1}
-        RETURNING
+  const client = await getPool().connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const existingResult = await client.query(
+      `
+        SELECT
           pi.id,
           pi.purchase_id AS "purchaseId",
           pi.product_id AS "productId",
           pi.original_name AS "originalName",
           pi.normalized_name_override AS "normalizedNameOverride",
+          COALESCE(pi.normalized_name_override, pr.normalized_name) AS "normalizedProductName",
+          pr.category,
+          pi.quantity::float AS "quantity",
+          pi.unit_price::float AS "unitPrice",
+          pi.total_price::float AS "totalPrice",
+          pi.user_comment AS "userComment",
+          pu.store_id AS "storeId",
+          pu.purchase_date::text AS "purchaseDate"
+        FROM purchase_items pi
+        JOIN purchases pu ON pu.id = pi.purchase_id
+        JOIN products pr ON pr.id = pi.product_id
+        WHERE pi.id = $1 AND pu.user_id = $2
+        LIMIT 1
+      `,
+      [itemId, userId]
+    );
+
+    const existing = existingResult.rows[0];
+    if (!existing) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    const nextValues = {
+      originalName:
+        payload.originalName !== undefined
+          ? sanitizePurchaseItemValue("originalName", payload.originalName)
+          : existing.originalName,
+      normalizedProductName:
+        payload.normalizedProductName !== undefined
+          ? sanitizePurchaseItemValue("normalizedProductName", payload.normalizedProductName)
+          : existing.normalizedProductName,
+      quantity:
+        payload.quantity !== undefined ? sanitizeNumberValue(payload.quantity, existing.quantity) : existing.quantity,
+      unitPrice:
+        payload.unitPrice !== undefined
+          ? sanitizeNumberValue(payload.unitPrice, existing.unitPrice)
+          : existing.unitPrice,
+      totalPrice:
+        payload.totalPrice !== undefined
+          ? sanitizeNumberValue(payload.totalPrice, existing.totalPrice)
+          : existing.totalPrice,
+      userComment:
+        payload.userComment !== undefined
+          ? sanitizePurchaseItemValue("userComment", payload.userComment)
+          : existing.userComment
+    };
+
+    if (payload.totalPrice !== undefined && payload.unitPrice === undefined && nextValues.quantity > 0) {
+      nextValues.unitPrice = roundMoney(nextValues.totalPrice / nextValues.quantity);
+    }
+
+    if (payload.totalPrice === undefined && (payload.quantity !== undefined || payload.unitPrice !== undefined)) {
+      nextValues.totalPrice = roundMoney(nextValues.quantity * nextValues.unitPrice);
+    }
+
+    let productId = existing.productId;
+    let normalizedNameOverride = existing.normalizedNameOverride;
+
+    if (payload.normalizedProductName !== undefined && nextValues.normalizedProductName) {
+      const product = await findOrCreateProduct(client, nextValues.normalizedProductName, existing.category);
+      productId = product.id;
+      normalizedNameOverride = null;
+    }
+
+    await client.query(
+      `
+        UPDATE purchase_items
+        SET
+          product_id = $1,
+          original_name = $2,
+          normalized_name_override = $3,
+          quantity = $4,
+          unit_price = $5,
+          total_price = $6,
+          user_comment = $7
+        WHERE id = $8
+      `,
+      [
+        productId,
+        nextValues.originalName,
+        normalizedNameOverride,
+        nextValues.quantity,
+        nextValues.unitPrice,
+        nextValues.totalPrice,
+        nextValues.userComment,
+        itemId
+      ]
+    );
+
+    const historyResult = await client.query(
+      `
+        UPDATE price_history
+        SET
+          product_id = $1,
+          store_id = $2,
+          purchase_id = $3,
+          purchase_item_id = $4,
+          user_id = $5,
+          price = $6,
+          date = $7
+        WHERE purchase_item_id = $4
+        RETURNING id
+      `,
+      [productId, existing.storeId, existing.purchaseId, itemId, userId, nextValues.unitPrice, existing.purchaseDate]
+    );
+
+    if (!historyResult.rows.length) {
+      await client.query(
+        `
+          INSERT INTO price_history (id, product_id, store_id, purchase_id, purchase_item_id, user_id, price, date)
+          VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7)
+        `,
+        [productId, existing.storeId, existing.purchaseId, itemId, userId, nextValues.unitPrice, existing.purchaseDate]
+      );
+    }
+
+    await client.query(
+      `
+        UPDATE purchases
+        SET
+          total_value = totals.total,
+          items_count = totals.items_count
+        FROM (
+          SELECT
+            COALESCE(SUM(total_price), 0)::numeric(10, 2) AS total,
+            COUNT(*)::int AS items_count
+          FROM purchase_items
+          WHERE purchase_id = $1
+        ) totals
+        WHERE purchases.id = $1
+      `,
+      [existing.purchaseId]
+    );
+
+    const finalResult = await client.query(
+      `
+        SELECT
+          pi.id,
+          pi.purchase_id AS "purchaseId",
+          pu.purchase_date::text AS "purchaseDate",
+          s.name AS "storeName",
+          pi.original_name AS "originalName",
+          COALESCE(pi.normalized_name_override, pr.normalized_name) AS "normalizedProductName",
           pi.quantity::float AS "quantity",
           pi.unit_price::float AS "unitPrice",
           pi.total_price::float AS "totalPrice",
           pi.user_comment AS "userComment"
-      )
-      SELECT
-        updated.id,
-        updated."purchaseId",
-        updated."originalName",
-        COALESCE(updated."normalizedNameOverride", pr.normalized_name) AS "normalizedProductName",
-        updated.quantity,
-        updated."unitPrice",
-        updated."totalPrice",
-        updated."userComment"
-      FROM updated
-      JOIN products pr ON pr.id = updated."productId"
-    `,
-    values
-  );
+        FROM purchase_items pi
+        JOIN purchases pu ON pu.id = pi.purchase_id
+        JOIN stores s ON s.id = pu.store_id
+        JOIN products pr ON pr.id = pi.product_id
+        WHERE pi.id = $1
+        LIMIT 1
+      `,
+      [itemId]
+    );
 
-  return rows[0] || null;
+    await client.query("COMMIT");
+    return finalResult.rows[0] || null;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 async function canUseDatabase() {
@@ -622,4 +747,45 @@ function sanitizePurchaseItemValue(key, value) {
   }
 
   return trimmed;
+}
+
+function sanitizeNumberValue(value, fallback = 0) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? roundMoney(numeric) : fallback;
+}
+
+async function findOrCreateProduct(client, normalizedName, fallbackCategory = "Outros") {
+  const cleanName = String(normalizedName || "").trim();
+  const existing =
+    (
+      await client.query(
+        `
+          SELECT id, normalized_name AS "normalizedName", category
+          FROM products
+          WHERE normalized_name = $1
+          LIMIT 1
+        `,
+        [cleanName]
+      )
+    ).rows[0] || null;
+
+  if (existing) {
+    return existing;
+  }
+
+  const normalized = normalizeProductName(cleanName);
+  const created = await client.query(
+    `
+      INSERT INTO products (id, normalized_name, category)
+      VALUES (gen_random_uuid(), $1, $2)
+      RETURNING id, normalized_name AS "normalizedName", category
+    `,
+    [cleanName, normalized.category || fallbackCategory || "Outros"]
+  );
+
+  return created.rows[0];
+}
+
+function roundMoney(value) {
+  return Number(Number(value || 0).toFixed(2));
 }

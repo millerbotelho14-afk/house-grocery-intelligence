@@ -50,11 +50,13 @@ CREATE TABLE IF NOT EXISTS price_history (
   product_id UUID NOT NULL REFERENCES products(id),
   store_id UUID NOT NULL REFERENCES stores(id),
   purchase_id UUID REFERENCES purchases(id),
+  purchase_item_id UUID REFERENCES purchase_items(id),
   user_id UUID REFERENCES users(id),
   price NUMERIC(10, 2) NOT NULL,
   date DATE NOT NULL
 );
 ALTER TABLE price_history ADD COLUMN IF NOT EXISTS purchase_id UUID REFERENCES purchases(id);
+ALTER TABLE price_history ADD COLUMN IF NOT EXISTS purchase_item_id UUID REFERENCES purchase_items(id);
 ALTER TABLE price_history ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id);
 
 UPDATE price_history ph
@@ -76,6 +78,34 @@ FROM (
 WHERE ph.id = candidate.id
   AND (ph.purchase_id IS NULL OR ph.user_id IS NULL);
 
+WITH ranked_price_history AS (
+  SELECT
+    id,
+    purchase_id,
+    product_id,
+    ROW_NUMBER() OVER (PARTITION BY purchase_id, product_id ORDER BY id) AS rn
+  FROM price_history
+  WHERE purchase_item_id IS NULL
+    AND purchase_id IS NOT NULL
+),
+ranked_items AS (
+  SELECT
+    id AS purchase_item_id,
+    purchase_id,
+    product_id,
+    ROW_NUMBER() OVER (PARTITION BY purchase_id, product_id ORDER BY id) AS rn
+  FROM purchase_items
+)
+UPDATE price_history ph
+SET purchase_item_id = ranked_items.purchase_item_id
+FROM ranked_price_history
+JOIN ranked_items
+  ON ranked_items.purchase_id = ranked_price_history.purchase_id
+ AND ranked_items.product_id = ranked_price_history.product_id
+ AND ranked_items.rn = ranked_price_history.rn
+WHERE ph.id = ranked_price_history.id
+  AND ph.purchase_item_id IS NULL;
+
 CREATE TABLE IF NOT EXISTS user_sessions (
   id UUID PRIMARY KEY,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -87,5 +117,6 @@ CREATE TABLE IF NOT EXISTS user_sessions (
 CREATE INDEX IF NOT EXISTS idx_products_search_vector ON products USING GIN(search_vector);
 CREATE INDEX IF NOT EXISTS idx_price_history_product_date ON price_history(product_id, date DESC);
 CREATE INDEX IF NOT EXISTS idx_price_history_user_date ON price_history(user_id, date DESC);
+CREATE INDEX IF NOT EXISTS idx_price_history_purchase_item ON price_history(purchase_item_id);
 CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(token);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_stores_name_unique ON stores(name);

@@ -19,9 +19,8 @@ import {
   getUserFromToken,
   saveParsedReceipt
 } from "../../../../api/src/services/repository.service.js";
-import { extractReceiptText } from "../../../../api/src/services/ocr.service.js";
-import { buildReceiptWarnings, normalizeReceiptDraft } from "../../../../api/src/services/receipt-draft.service.js";
-import { parseReceipt } from "../../../../api/src/services/receipt-parser.service.js";
+import { normalizeReceiptDraft } from "../../../../api/src/services/receipt-draft.service.js";
+import { previewReceiptFromSource } from "../../../../api/src/services/receipt-intelligence.service.js";
 import { comparePassword, generateSessionToken, hashPassword } from "../../../../api/src/utils/auth.js";
 
 export const runtime = "nodejs";
@@ -209,14 +208,14 @@ async function handleRequest(request, context) {
         return NextResponse.json({ message: "Envie um tipo, link, conteudo ou arquivo" }, { status: 400 });
       }
 
-      const text = await extractReceiptText({ type, source, file });
-      const parsedReceipt = normalizeReceiptDraft(await parseReceipt(text));
-      const warnings = buildReceiptWarnings(parsedReceipt);
+      const preview = await previewReceiptFromSource({ type, source, file });
 
       return NextResponse.json({
         message: "Cupom lido. Revise antes de salvar.",
-        parsedReceipt,
-        warnings
+        provider: preview.provider,
+        extractionSummary: preview.extractionSummary,
+        parsedReceipt: preview.parsedReceipt,
+        warnings: preview.warnings
       });
     }
 
